@@ -1,52 +1,48 @@
-# test.py
 import time
+import gym
 from stable_baselines3 import PPO
-from Building import Building
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import VecNormalize
+from environment.Building import Building
 
-def run_trained_model(
-    model_path='models/final_ppo_elevator.zip',
-    total_elevators=2,
-    max_floor=10,
-    max_passengers_in_floor=5,
-    max_passengers_in_elevator=4,
-    elevator_capacity=10,
-    spawn_prob=0.1,
-    max_steps=200
-):
-    # Load the trained model
-    model = PPO.load(model_path)
-
-    # Create environment for evaluation
-    env = Building(
-        total_elevator_num=total_elevators,
-        max_floor=max_floor,
-        max_passengers_in_floor=max_passengers_in_floor,
-        max_passengers_in_elevator=max_passengers_in_elevator,
-        elevator_capacity=elevator_capacity
+def make_env():
+    # Create the Building environment with the same parameters used during training
+    return Building(
+        total_elevator_num=2,       # Adjust based on your training setup
+        max_floor=10,              # Adjust based on your training setup
+        max_passengers_in_floor=20, # Adjust based on your training setup
+        max_passengers_in_elevator=10, # Adjust based on your training setup
+        elevator_capacity=10,       # Adjust based on your training setup
+        render_mode="human"       # Set to "human" for rendering
     )
 
+# Set up the environment
+env = make_env()
+env = DummyVecEnv([lambda: env])  # Wrap in DummyVecEnv for compatibility
+env = VecNormalize.load("vec_normalize.pkl", env)  # Load normalization stats
+
+# Load the trained PPO model
+model = PPO.load("ppo_elevator", env=env)
+
+# Test for a specified number of episodes
+num_episodes = 10
+
+for episode in range(num_episodes):
     obs = env.reset()
-    # Ensure at least one passenger to start episode
-    waiting = obs['waiting'].sum()
-    if waiting == 0:
-        env.generate_passengers(env.spawn_prob)
-        obs = env._build_obs()
-    for step in range(max_steps):
-        # Predict action
-        action, _states = model.predict(obs, deterministic=True)
-        # Step environment
+    done = [False]
+    episode_reward = 0
+    step = 0
+    while not done[0]:
+        # Predict the next action using the trained model
+        action, _ = model.predict(obs)
+        # Step the environment with the predicted action
         obs, reward, done, info = env.step(action)
-
-        # Render building state
-        print(f"Step {info['step']} | Reward: {reward}")
+        episode_reward += reward[0]
+        # Render the environment to visualize the state
         env.render()
+        time.sleep(0.1)  # Add a delay to make rendering observable
+        step += 1
+    # Print episode statistics
+    # print(f"Episode {episode + 1}: Reward = {episode_reward}, Steps = {step}, Arrived Passengers = {info[0]['arrived_passengers']}")
 
-        time.sleep(0.5)  # pause for visualization
-        if done:
-            print("All passengers served, ending episode.")
-            break
-
-    env.close()
-
-if __name__ == '__main__':
-    run_trained_model()
+# Note: Ensure "ppo_elevator.zip" and "vec_normalize.pkl" are in the current directory or adjust paths accordingly
