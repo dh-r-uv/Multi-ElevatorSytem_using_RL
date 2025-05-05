@@ -6,14 +6,13 @@ from stable_baselines3.common.vec_env import VecNormalize
 from environment.Building import Building
 
 def make_env():
-    # Create the Building environment with the same parameters used during training
     return Building(
-        total_elevator_num=2,       # Adjust based on your training setup
-        max_floor=10,              # Adjust based on your training setup
-        max_passengers_in_floor=20, # Adjust based on your training setup
-        max_passengers_in_elevator=10, # Adjust based on your training setup
-        elevator_capacity=10,       # Adjust based on your training setup
-        render_mode="human"       # Set to "human" for rendering
+        total_elevator_num=1,          # Number of elevators
+        max_floor=5,                  # Number of floors
+        max_passengers_in_floor=5,    # Max passengers per floor
+        max_passengers_in_elevator=10, # Max passengers per elevator
+        elevator_capacity=10,          # Elevator capacity
+        render_mode="human"         # Render mode for visualization
     )
 
 # Set up the environment
@@ -39,10 +38,10 @@ for episode in range(num_episodes):
         obs, reward, done, info = env.step(action)
         episode_reward += reward[0]
         # Render the environment to visualize the state
-        env.render()
+        env.envs[0].render()
         time.sleep(0.1)  # Add a delay to make rendering observable
         step += 1
     # Print episode statistics
-    # print(f"Episode {episode + 1}: Reward = {episode_reward}, Steps = {step}, Arrived Passengers = {info[0]['arrived_passengers']}")
+    print(f"Episode {episode + 1}: Reward = {episode_reward}, Steps = {step}, Arrived Passengers = {info[0]['arrived_passengers']}, Remaining Passengers = {info[0]['remaining_passengers']}")
 
 # Note: Ensure "ppo_elevator.zip" and "vec_normalize.pkl" are in the current directory or adjust paths accordingly

@@ -6,9 +6,9 @@ from environment.Building import Building  # Assuming Building class is in envir
 # Step 1: Create the Building environment
 def make_env():
     return Building(
-        total_elevator_num=2,          # Number of elevators
-        max_floor=10,                  # Number of floors
-        max_passengers_in_floor=20,    # Max passengers per floor
+        total_elevator_num=1,          # Number of elevators
+        max_floor=5,                  # Number of floors
+        max_passengers_in_floor=5,    # Max passengers per floor
         max_passengers_in_elevator=10, # Max passengers per elevator
         elevator_capacity=10,          # Elevator capacity
         render_mode="human"         # Render mode for visualization
@@ -29,7 +29,7 @@ model = PPO(
     learning_rate=3e-4,  # Learning rate for optimization
     n_steps=2048,        # Number of steps per update
     batch_size=64,       # Minibatch size for policy updates
-    n_epochs=10,         # Number of epochs per update
+    n_epochs=100,         # Number of epochs per update
     gamma=0.99           # Discount factor for rewards
 )
 

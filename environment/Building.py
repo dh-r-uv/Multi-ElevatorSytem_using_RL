@@ -153,12 +153,15 @@ class Building(gym.Env):
 
     def step(self, action):
         '''Take an action, update the environment, and return (obs, reward, done, info)'''
-        self.generate_passengers(prob=0.1)  # New passengers each step
+        # self.generate_passengers(prob=0.1)  # New passengers each step
         reward = self.perform_action(action)
         obs = self._get_observation()
         self.current_step += 1
         done = self.current_step >= self.max_steps or self.get_remain_all_passengers() == 0
-        info = {}
+        info = {
+            "arrived_passengers": self.get_arrived_passengers(),
+            "remaining_passengers": self.get_remain_all_passengers()
+        }
         return obs, reward, done, info
 
     def _get_observation(self):
