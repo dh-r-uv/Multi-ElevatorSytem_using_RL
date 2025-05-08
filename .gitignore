@@ -1,1 +1,5 @@
 /.env
+/environment/__pycache__
+/__pycache__
+/ppo_elevator.zip   
+/vec_normalize.pkl

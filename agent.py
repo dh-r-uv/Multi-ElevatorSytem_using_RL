@@ -1,47 +1,45 @@
 import gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-from environment.Building import Building  # Assuming Building class is in environment/Building.py
 
-# Step 1: Create the Building environment
+from environment.Building import Building  # Your custom env
+
+# 1) Set up TensorBoard log directory
+TB_LOG_DIR = "./tensorboard_logs/"
+
 def make_env():
     return Building(
-        total_elevator_num=1,          # Number of elevators
-        max_floor=5,                  # Number of floors
-        max_passengers_in_floor=5,    # Max passengers per floor
-        max_passengers_in_elevator=10, # Max passengers per elevator
-        elevator_capacity=10,          # Elevator capacity
-        render_mode="human"         # Render mode for visualization
+        total_elevator_num=2,          
+        max_floor=6,                  
+        max_passengers_in_floor=7,    
+        max_passengers_in_elevator=8, 
+        elevator_capacity=8,          
+        render_mode="human"         
     )
 
-# Vectorize the environment for compatibility with Stable Baselines3
+# Vectorize & normalize
 env = DummyVecEnv([make_env])
-
-# Normalize observations to improve training stability
 env = VecNormalize(env, norm_obs=True, norm_reward=False)
 
-# Step 2 & 3: PPO setup handles emptying the building and generating passengers via reset
-# Step 4: PPO's learn method performs actions, checks rewards, and updates the policy
+# 2) Pass tensorboard_log to the constructor
 model = PPO(
-    "MultiInputPolicy",  # Policy suitable for dictionary observation spaces
+    "MultiInputPolicy",
     env,
     verbose=1,
-    learning_rate=3e-4,  # Learning rate for optimization
-    n_steps=2048,        # Number of steps per update
-    batch_size=64,       # Minibatch size for policy updates
-    n_epochs=100,         # Number of epochs per update
-    gamma=0.99           # Discount factor for rewards
+    learning_rate=3e-4,
+    n_steps=2048,
+    batch_size=64,
+    n_epochs=1000,
+    gamma=0.99,
+    tensorboard_log=TB_LOG_DIR,     # ← enable TB logging here
 )
 
-# Train the model
-total_timesteps = 100000  # Total training steps; adjust as needed
-model.learn(total_timesteps=total_timesteps)
+# 3) When calling learn, give each run a name
+model.learn(
+    total_timesteps=100_000,
+    tb_log_name="ppo_elevator_run"  # ← this subfolder will appear under tensorboard_logs/
+)
 
-# Save the trained model and normalization parameters
+# 4) Save everything as before
 model.save("ppo_elevator")
 env.save("vec_normalize.pkl")
-
-# Optional: Load and test the model
-env = DummyVecEnv([make_env])
-env = VecNormalize.load("vec_normalize.pkl", env)
-model = PPO.load("ppo_elevator", env=env)

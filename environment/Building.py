@@ -32,7 +32,7 @@ class Building(gym.Env):
         
         # Define observation space as a dictionary
         self.observation_space = spaces.Dict({
-            "floor_passengers": spaces.Box(low=0, high=max_passengers_in_floor, shape=(max_floor, max_floor), dtype=np.int32),
+            "floor_passengers": spaces.Box(low=-1, high=max_passengers_in_floor, shape=(max_floor, max_floor), dtype=np.int32),
             "elevator_floors": spaces.Box(low=0, high=max_floor-1, shape=(total_elevator_num,), dtype=np.int32),
             "elevator_passengers": spaces.Box(low=0, high=max_passengers_in_elevator, shape=(total_elevator_num, max_floor), dtype=np.int32),
         })
@@ -55,12 +55,10 @@ class Building(gym.Env):
         floor_passengers = [[[floor, passenger.get_dest()] for passenger in passengers] for floor, passengers in enumerate(self.floors_information)]
         floor_passengers = [x for x in floor_passengers if x != []]
         floor_passengers = [y for x in floor_passengers for y in x]
+        floor_passengers = sorted(floor_passengers, key = lambda x: (x[0], x[1]))
         if len(floor_passengers) == 0:
             floor_passengers.append([-1, -1])
         elv_passengers = [e.get_passengers_info() for e in self.elevators]
-        elv_passengers = [x for x in elv_passengers if x != []]
-        if len(elv_passengers) == 0:
-            elv_passengers.append([-1])
         elevators_floors = [e.curr_floor for e in self.elevators]
         return floor_passengers, elv_passengers, elevators_floors
 
@@ -96,24 +94,25 @@ class Building(gym.Env):
         for idx, e in enumerate(self.elevators):
             if action[idx] == 0:
                 if e.curr_floor == 0:
-                    penalty_lst.append(-1)
+                    penalty_lst.append(-100)
                 e.move_down()
             elif action[idx] == 1:
                 if e.curr_floor == (self.max_floor - 1):
-                    penalty_lst.append(-1)
+                    penalty_lst.append(-10)
                 e.move_up()
             elif action[idx] == 2:
                 if len(self.floors_information[e.curr_floor]) == 0:
-                    penalty_lst.append(-1)
+                    penalty_lst.append(-10)
                 self.floors_information[e.curr_floor] = e.load_passengers(self.floors_information[e.curr_floor])
             elif action[idx] == 3:
                 arrived_passengers_num = e.unload_passengers(self.floors_information[e.curr_floor])
                 if arrived_passengers_num == 0:
-                    penalty_lst.append(-1)
+                    penalty_lst.append(-100)
                 arrived_passengers_num_lst.append(arrived_passengers_num)
         
         # Reward includes positive reward for arrivals
-        reward = sum(arrived_passengers_num_lst) + sum(penalty_lst) - self.get_remain_all_passengers()
+        # reward = sum(arrived_passengers_num_lst) + sum(penalty_lst) - self.get_remain_all_passengers()
+        reward = sum(penalty_lst) - self.get_remain_all_passengers()
         return reward
 
     def print_building(self, step: int):
@@ -158,32 +157,34 @@ class Building(gym.Env):
         obs = self._get_observation()
         self.current_step += 1
         done = self.current_step >= self.max_steps or self.get_remain_all_passengers() == 0
+        # reward += done * 1000  # Extra reward for finishing the episode
         info = {
             "arrived_passengers": self.get_arrived_passengers(),
-            "remaining_passengers": self.get_remain_all_passengers()
+            "remaining_passengers": self.get_remain_all_passengers(),
+            "state": self.get_state()
         }
         return obs, reward, done, info
 
     def _get_observation(self):
         '''Return the current state in the observation_space format'''
-        floor_passengers = np.zeros((self.max_floor, self.max_floor), dtype=np.int32)
-        for floor in range(self.max_floor):
-            for passenger in self.floors_information[floor]:
-                dest = passenger.get_dest()
-                floor_passengers[floor, dest] += 1
+        floor_passengers, elevator_passengers, elevator_floors = self.get_state()
+        floor_mat = np.zeros((self.max_floor, self.max_floor), dtype=np.int32)
+        for origin, dest in floor_passengers:
+            floor_mat[origin, dest] += 1
+        floor_mat = np.clip(floor_mat, -1, self.max_passengers_in_floor)
 
-        elevator_floors = np.array([e.curr_floor for e in self.elevators], dtype=np.int32)
-        
-        elevator_passengers = np.zeros((self.total_elevator_num, self.max_floor), dtype=np.int32)
-        for idx, e in enumerate(self.elevators):
-            for p in e.curr_passengers_in_elv:
-                dest = p.get_dest()
-                elevator_passengers[idx, dest] += 1
+        elev_floor = np.array(elevator_floors, dtype=np.int32)
+
+        elev_pass = np.zeros((self.total_elevator_num, self.max_floor), dtype=np.int32)
+        for idx, passengers in enumerate(elevator_passengers):
+            for passenger in passengers:
+                elev_pass[idx, passenger] += 1
+        elev_pass = np.clip(elev_pass, 0, self.max_passengers_in_elevator)
 
         return {
-            "floor_passengers": floor_passengers,
-            "elevator_floors": elevator_floors,
-            "elevator_passengers": elevator_passengers,
+            "floor_passengers": floor_mat,
+            "elevator_floors": elev_floor,
+            "elevator_passengers": elev_pass
         }
 
     def render(self, mode='human'):
