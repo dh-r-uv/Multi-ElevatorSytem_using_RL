@@ -18,13 +18,13 @@ def make_env():
 # Set up the environment
 env = make_env()
 env = DummyVecEnv([lambda: env])  # Wrap in DummyVecEnv for compatibility
-env = VecNormalize.load("vec_normalize.pkl", env)  # Load normalization stats
+env = VecNormalize.load("vec_normalize_final.pkl", env)  # Load normalization stats
 
 # Load the trained PPO model
-model = PPO.load("ppo_elevator", env=env)
+model = PPO.load("ppo_elevator_final", env=env)
 
 # Test for a specified number of episodes
-num_episodes = 5
+num_episodes = 1
 
 for episode in range(num_episodes):
     obs = env.reset()
@@ -39,7 +39,7 @@ for episode in range(num_episodes):
         episode_reward += reward[0]
         # Render the environment to visualize the state
         env.envs[0].render()
-        time.sleep(0.5)  # Add a delay to make rendering observable
+        time.sleep(1)  # Add a delay to make rendering observable
         step += 1
     # Print episode statistics
     print(f"Episode {episode + 1}: Reward = {episode_reward}, Steps = {step}, Arrived Passengers = {info[0]['arrived_passengers']}, Remaining Passengers = {info[0]['remaining_passengers']}")

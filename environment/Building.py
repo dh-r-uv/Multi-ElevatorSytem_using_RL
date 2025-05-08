@@ -94,20 +94,20 @@ class Building(gym.Env):
         for idx, e in enumerate(self.elevators):
             if action[idx] == 0:
                 if e.curr_floor == 0:
-                    penalty_lst.append(-100)
+                    penalty_lst.append(-1)
                 e.move_down()
             elif action[idx] == 1:
                 if e.curr_floor == (self.max_floor - 1):
-                    penalty_lst.append(-10)
+                    penalty_lst.append(-1)
                 e.move_up()
             elif action[idx] == 2:
                 if len(self.floors_information[e.curr_floor]) == 0:
-                    penalty_lst.append(-10)
+                    penalty_lst.append(-1)
                 self.floors_information[e.curr_floor] = e.load_passengers(self.floors_information[e.curr_floor])
             elif action[idx] == 3:
                 arrived_passengers_num = e.unload_passengers(self.floors_information[e.curr_floor])
                 if arrived_passengers_num == 0:
-                    penalty_lst.append(-100)
+                    penalty_lst.append(-1)
                 arrived_passengers_num_lst.append(arrived_passengers_num)
         
         # Reward includes positive reward for arrivals
@@ -147,7 +147,7 @@ class Building(gym.Env):
         '''Reset the environment to an initial state'''
         self.empty_building()
         self.current_step = 0
-        self.generate_passengers(prob=0.5)  # Initial passengers
+        self.generate_passengers(prob=0.8)  # Initial passengers
         return self._get_observation()
 
     def step(self, action):
@@ -157,11 +157,12 @@ class Building(gym.Env):
         obs = self._get_observation()
         self.current_step += 1
         done = self.current_step >= self.max_steps or self.get_remain_all_passengers() == 0
-        # reward += done * 1000  # Extra reward for finishing the episode
+        reward += done * 500  # Extra reward for finishing the episode
         info = {
             "arrived_passengers": self.get_arrived_passengers(),
             "remaining_passengers": self.get_remain_all_passengers(),
-            "state": self.get_state()
+            "state": self.get_state(),
+            "reward": reward
         }
         return obs, reward, done, info
 

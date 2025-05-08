@@ -3,3 +3,4 @@
 /__pycache__
 /ppo_elevator.zip   
 /vec_normalize.pkl
+/tensorboard_logs
