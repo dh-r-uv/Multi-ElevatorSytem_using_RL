@@ -1,186 +1,91 @@
 import numpy as np
 import gym
+import environment.utils as utils
 from gym import spaces
 from environment.Elevator import Elevator
 from environment.Passenger import Passenger
 
+
+
 class Building(gym.Env):
     '''
-    Building controls elevators and passengers.
-    It sets constraints and operates entire environment, adapted for Gym.
+    Building class to represent a building with multiple floors and elevators.
+    Each elevator can move up or down, load passengers from the current floor, and unload passengers at the destination floor.
+    The building can generate random passengers on each floor and keep track of the number of passengers in the building.
+    The environment can be reset to an initial state, and the current state can be observed.
+    Elevator classes are wrapped in the Building class and the states and actions are defined
     '''
-    def __init__(self, total_elevator_num: int, max_floor: int, max_passengers_in_floor: int, max_passengers_in_elevator: int, elevator_capacity: int = 10, render_mode:str = "human"):
+    def __init__(self, elevator_count: int, max_floor: int, floor_capacity: int, elevator_capacity: int = 10, render_mode:str = "human"):
         '''
-        remain_passengers_num(int): Remaining passengers in building
-        total_elevator_num(int): Total number of elevators
-        max_passengers_in_floor(int): Maximum number of passengers on one floor
-        max_passengers_in_elevator(int): Maximum number of passengers in one elevator
-        max_floor(int): Maximum floor in the building
-        floors_information(list(Passenger)): Passenger information on each floor
-        elevators(list(Elevator)): List of elevators
+        elevator_count : int : Number of elevators in the building
+        floor_capacity : int : Maximum number of passengers on each floor
+        elevator_capacity : int : Maximum number of passengers in each elevator
+        max_floor : int : Number of floors in the building
+        render_mode : str : Mode for rendering the environment (default is "human")
         '''
         super(Building, self).__init__()
-        self.remain_passengers_num = 0
-        self.cumulated_reward = 0
-        self.total_elevator_num = total_elevator_num
-        self.max_passengers_in_floor = max_passengers_in_floor
-        self.max_passengers_in_elevator = max_passengers_in_elevator
-        self.elevators = [Elevator(idx, elevator_capacity, max_floor) for idx in range(total_elevator_num)]
+        self.elevator_count = elevator_count
+        self.floor_capacity = floor_capacity
+        self.elevator_capacity = elevator_capacity
+        self.elevators = [Elevator(idx, elevator_capacity, max_floor) for idx in range(elevator_count)]
         self.max_floor = max_floor
-        self.floors_information = [[] for _ in range(max_floor)]
-        self.render_mode = render_mode
+        self.floor_info = [[] for _ in range(max_floor)]
+        self.total_passengers = 0
+        self.arrived_passengers = [[] for _ in range(max_floor)]
+
+        # Passengers from file
+        self.flag = False
+        self.passengers = []
         
         # Define observation space as a dictionary
         self.observation_space = spaces.Dict({
-            "floor_passengers": spaces.Box(low=-1, high=max_passengers_in_floor, shape=(max_floor, max_floor), dtype=np.int32),
-            "elevator_floors": spaces.Box(low=0, high=max_floor-1, shape=(total_elevator_num,), dtype=np.int32),
-            "elevator_passengers": spaces.Box(low=0, high=max_passengers_in_elevator, shape=(total_elevator_num, max_floor), dtype=np.int32),
+            "floor_passengers": spaces.Box(low=-1, high=floor_capacity, shape=(max_floor, max_floor), dtype=np.int32),
+            "elevator_floors": spaces.Box(low=0, high=max_floor-1, shape=(elevator_count,), dtype=np.int32),
+            "elevator_passengers": spaces.Box(low=0, high=elevator_capacity, shape=(elevator_count, max_floor), dtype=np.int32),
         })
         
         # Define action space: 0 (down), 1 (up), 2 (load), 3 (unload) for each elevator
-        self.action_space = spaces.MultiDiscrete([4] * total_elevator_num)
+        self.action_space = spaces.MultiDiscrete([4] * elevator_count)
         
+        # Initialize for easier tracking
+        self.cumulated_reward = 0
+        self.render_mode = render_mode
+
         # Episode step tracking
-        self.max_steps = 1000
+        self.max_steps = utils.MAXSTEPS
         self.current_step = 0
 
-    def get_arrived_passengers(self) -> int:
-        arrived_passengers = 0
-        for e in self.elevators:
-            arrived_passengers += e.arrived_passengers_num
-            e.arrived_passengers_num = 0
-        return arrived_passengers
+        # extra info: list of passengers unloaded per elevator, loaded and waiting time in elevators for each passenger
+        self.info = {"unloaded" : {}, "loaded" : {}, "waiting_time_in_elv" : {}}
 
-    def get_state(self) -> tuple:
-        floor_passengers = [[[floor, passenger.get_dest()] for passenger in passengers] for floor, passengers in enumerate(self.floors_information)]
+    def set_flag(self, flag: bool = False, passengers: list = None):
+        self.flag = flag
+        self.passengers = passengers
+
+    def _get_observation(self):
+        '''Return the current state in the observation_space format'''
+        # Passengers in each floor
+        floor_passengers = [[[floor, p.get_dest_floor()] for p in passengers] for floor, passengers in enumerate(self.floor_info)]
         floor_passengers = [x for x in floor_passengers if x != []]
         floor_passengers = [y for x in floor_passengers for y in x]
         floor_passengers = sorted(floor_passengers, key = lambda x: (x[0], x[1]))
         if len(floor_passengers) == 0:
             floor_passengers.append([-1, -1])
-        elv_passengers = [e.get_passengers_info() for e in self.elevators]
-        elevators_floors = [e.curr_floor for e in self.elevators]
-        return floor_passengers, elv_passengers, elevators_floors
-
-    def empty_building(self):
-        '''Clears the building'''
-        self.floors_information = [[] for _ in range(self.max_floor)]
-        for e in self.elevators:
-            e.empty()
-        self.remain_passengers_num = 0
-
-    def get_remain_passengers_in_building(self):
-        return sum(len(x) for x in self.floors_information)
-
-    def get_remain_passengers_in_elv(self, elv):
-        return len(elv.curr_passengers_in_elv)
-
-    def get_remain_all_passengers(self):
-        return sum(self.get_remain_passengers_in_elv(x) for x in self.elevators) + self.get_remain_passengers_in_building()
-
-    def generate_passengers(self, prob: float, passenger_max_num: int = 6):
-        '''Generate random passengers in the building'''
-        for floor_num in range(self.max_floor):
-            if np.random.random() < prob and len(self.floors_information[floor_num]) < self.max_passengers_in_floor:
-                passenger_num = np.random.randint(1, passenger_max_num)
-                passenger_num = min(self.max_passengers_in_floor - len(self.floors_information[floor_num]), passenger_num)
-                additional_passengers = [Passenger(now_floor=floor_num, max_floor=self.max_floor) for _ in range(passenger_num)]
-                self.floors_information[floor_num].extend(additional_passengers)
-                self.remain_passengers_num += passenger_num
-
-    def perform_action(self, action: list):
-        arrived_passengers_num_lst = []
-        penalty_lst = []
-        for idx, e in enumerate(self.elevators):
-            if action[idx] == 0:
-                if e.curr_floor == 0:
-                    penalty_lst.append(-1)
-                e.move_down()
-            elif action[idx] == 1:
-                if e.curr_floor == (self.max_floor - 1):
-                    penalty_lst.append(-1)
-                e.move_up()
-            elif action[idx] == 2:
-                if len(self.floors_information[e.curr_floor]) == 0:
-                    penalty_lst.append(-1)
-                self.floors_information[e.curr_floor] = e.load_passengers(self.floors_information[e.curr_floor])
-            elif action[idx] == 3:
-                arrived_passengers_num = e.unload_passengers(self.floors_information[e.curr_floor])
-                if arrived_passengers_num == 0:
-                    penalty_lst.append(-1)
-                arrived_passengers_num_lst.append(arrived_passengers_num)
-        
-        # Reward includes positive reward for arrivals
-        # reward = sum(arrived_passengers_num_lst) + sum(penalty_lst) - self.get_remain_all_passengers()
-        reward = sum(penalty_lst) - self.get_remain_all_passengers()
-        return reward
-
-    def print_building(self, step: int):
-        for idx in reversed(range(1, self.max_floor)):
-            print("=======================================================")
-            print(f"= Floor #{idx:02d} =", end=' ')
-            for e in self.elevators:
-                print(f"  Lift #{e.idx}" if e.curr_floor == idx else "         ", end=' ')
-            print(" ")
-            print("=  Waiting  =", end=' ')
-            for e in self.elevators:
-                print(f"    {len(e.curr_passengers_in_elv):02d}   " if e.curr_floor == idx else "          ", end=' ')
-            print(" ")
-            print(f"=    {len(self.floors_information[idx]):03d}    =")
-        print("=======================================================")
-        print("= Floor #00 =", end=' ')
-        for e in self.elevators:
-            print(f"  Lift #{e.idx}" if e.curr_floor == 0 else "         ", end=' ')
-        print(" ")
-        print("=  Arrived  =", end=' ')
-        for e in self.elevators:
-            print(f"    {len(e.curr_passengers_in_elv):02d}   " if e.curr_floor == 0 else "          ", end=' ')
-        print(" ")
-        print(f"=    {len(self.floors_information[0]):03d}    =")
-        print("=======================================================")
-        print(f"\nPeople to move: {self.remain_passengers_num - len(self.floors_information[0])}")
-        print(f"Total # of people: {self.remain_passengers_num}")
-        print(f"Step: {step}")
-        print('state : ', self.get_state())
-
-    def reset(self):
-        '''Reset the environment to an initial state'''
-        self.empty_building()
-        self.current_step = 0
-        self.generate_passengers(prob=0.8)  # Initial passengers
-        return self._get_observation()
-
-    def step(self, action):
-        '''Take an action, update the environment, and return (obs, reward, done, info)'''
-        # self.generate_passengers(prob=0.1)  # New passengers each step
-        reward = self.perform_action(action)
-        obs = self._get_observation()
-        self.current_step += 1
-        done = self.current_step >= self.max_steps or self.get_remain_all_passengers() == 0
-        reward += done * 500  # Extra reward for finishing the episode
-        info = {
-            "arrived_passengers": self.get_arrived_passengers(),
-            "remaining_passengers": self.get_remain_all_passengers(),
-            "state": self.get_state(),
-            "reward": reward
-        }
-        return obs, reward, done, info
-
-    def _get_observation(self):
-        '''Return the current state in the observation_space format'''
-        floor_passengers, elevator_passengers, elevator_floors = self.get_state()
         floor_mat = np.zeros((self.max_floor, self.max_floor), dtype=np.int32)
         for origin, dest in floor_passengers:
             floor_mat[origin, dest] += 1
-        floor_mat = np.clip(floor_mat, -1, self.max_passengers_in_floor)
+        floor_mat = np.clip(floor_mat, -1, self.floor_capacity)
 
-        elev_floor = np.array(elevator_floors, dtype=np.int32)
+        # Floor elevators at
+        elev_floor = np.array([e.cur_floor for e in self.elevators], dtype=np.int32)
 
-        elev_pass = np.zeros((self.total_elevator_num, self.max_floor), dtype=np.int32)
+        # Passengers in each Elevator
+        elevator_passengers = [e.get_dest_info() for e in self.elevators]
+        elev_pass = np.zeros((self.elevator_count, self.max_floor), dtype=np.int32)
         for idx, passengers in enumerate(elevator_passengers):
             for passenger in passengers:
                 elev_pass[idx, passenger] += 1
-        elev_pass = np.clip(elev_pass, 0, self.max_passengers_in_elevator)
+        elev_pass = np.clip(elev_pass, 0, self.elevator_capacity)
 
         return {
             "floor_passengers": floor_mat,
@@ -188,11 +93,161 @@ class Building(gym.Env):
             "elevator_passengers": elev_pass
         }
 
+    def get_all_remaining_passengers(self):
+        # return sum(self.get_remain_passengers_in_elv(x) for x in self.elevators) + self.get_remain_passengers_in_building()
+        remaining_passengers = 0
+
+        #Add passengers left in elevators
+        for e in self.elevators:
+            remaining_passengers += e.passenger_count
+
+        #Add passengers left to be picked from floors
+        for floor in self.floor_info:
+            remaining_passengers += len(floor)
+        return remaining_passengers
+
+    def generate_passengers(self, prob: float, passenger_max_num: int = 6):
+        '''Generate random passengers in the building'''
+        if(self.flag):
+            # generate the passengers in the passengers list
+            for p in self.passengers:
+                cur_floor, dest_floor = p
+                if cur_floor < self.max_floor and dest_floor < self.max_floor:
+                    self.total_passengers += 1
+                    new_passenger = Passenger(cur_floor=cur_floor, max_floor=self.max_floor, cur_step=self.current_step, passenger_idx=self.total_passengers, dest_floor=dest_floor)
+                    self.floor_info[cur_floor].append(new_passenger)
+        else:
+            for floor_num in range(self.max_floor):
+                if np.random.random() < prob and len(self.floor_info[floor_num]) < self.floor_capacity:
+                    passenger_num = np.random.randint(1, passenger_max_num)
+                    passenger_num = min(self.floor_capacity - len(self.floor_info[floor_num]), passenger_num)
+                    additional_passengers = []
+                    for i in range(passenger_num):
+                        self.total_passengers += 1
+                        additional_passengers.append(Passenger(cur_floor=floor_num, max_floor=self.max_floor, cur_step=self.current_step, passenger_idx=self.total_passengers))
+                    self.floor_info[floor_num].extend(additional_passengers)
+
+    def perform_action(self, action: list):
+        # arrived_passengers_num_lst = []
+        penalty = 0
+        for idx, e in enumerate(self.elevators):
+            if action[idx] == 0:
+                if(e.move_down() == False):
+                    penalty += utils.PENALTY_OUTOFBOUNDS
+            elif action[idx] == 1:
+                if(e.move_up() == False):
+                    penalty += utils.PENALTY_OUTOFBOUNDS
+            elif action[idx] == 2:
+                if len(self.floor_info[e.cur_floor]) == 0:
+                    penalty += utils.PENALTY_USELESS
+                self.floor_info[e.cur_floor], loaded_passengers = e.load(self.floor_info[e.cur_floor])
+                self.info["loaded"][e.idx] = [p.get_passenger_idx() for p in loaded_passengers]
+            elif action[idx] == 3:
+                unloaded_passengers = e.unload()
+                if len(unloaded_passengers) == 0:
+                    penalty += utils.PENALTY_USELESS
+                # arrived_passengers_num_lst.append(len(unloaded_passengers))
+                self.info["unloaded"][e.idx] = [p.get_passenger_idx() for p in unloaded_passengers]
+                # for each elevator make a pair of idx_passenger and waiting time
+                self.info["waiting_time_in_elv"][e.idx] = []
+                for p in unloaded_passengers:
+                    self.info["waiting_time_in_elv"][e.idx].append((p.get_passenger_idx(), p.get_wait_time(self.current_step)))
+                
+                self.arrived_passengers[e.cur_floor].extend(unloaded_passengers)
+        
+        penalty += self.get_all_remaining_passengers()
+        reward = - penalty
+        return reward
+
+    def render_shafts(self):
+        """
+        Draw a vertical shaft diagram in the terminal. For each floor (top→0),
+        prints:
+        [Floor ##] │ Shaft0       Shaft1   … ShaftN-1 │ Waiting: […] │ Arrived: […]
+        - E{i}[…] marks elevator i & its onboard passenger IDs
+        - Waiting: IDs queued on this floor
+        - Arrived: IDs that got off here this timestep
+        """
+        n_shafts = len(self.elevators)
+        shaft_w = 2 * self.elevator_capacity + 5
+        floor_label_w = 12
+        waiting_w = self.floor_capacity * 2 + 12
+        arrived_w = self.floor_capacity * 2 + 12
+
+        total_w = floor_label_w + 1 + n_shafts * shaft_w + 1 + waiting_w + 3 + arrived_w
+        sep = "=" * total_w
+
+        for floor in reversed(range(self.max_floor)):
+            # Build floor label
+            lbl = f" Floor {floor:02d} "
+            line = lbl.ljust(floor_label_w) + "│"
+
+            # Elevator shafts
+            for e in self.elevators:
+                if e.cur_floor == floor:
+                    p_ids = ",".join(str(p.get_passenger_idx()) for p in e.passengers_in_elv) or "-"
+                    content = f"E{e.idx}[{p_ids}]"
+                else:
+                    content = ""
+                line += content.center(shaft_w)
+            line += "│"
+
+            # Waiting
+            w_ids = ",".join(str(p.get_passenger_idx()) for p in self.floor_info[floor])
+            wait_str = f" Waiting: [{w_ids}] " if w_ids else " Waiting: [] "
+            line += wait_str.ljust(waiting_w)
+
+            # Arrived (just unloaded this tick)
+            # You need to track unload events per floor; assume self.arrived[floor] is a list of IDs
+            # a_ids = ",".join(str(pid) for pid in self.arrived.get(floor, []))
+            a_ids = ",".join(str(p.get_passenger_idx()) for p in self.arrived_passengers[floor])
+            arr_str = f" Arrived: [{a_ids}] " if a_ids else " Arrived: [] "
+            line += arr_str.ljust(arrived_w)
+
+            print(sep)
+            print(line)
+        print(sep)
+        print("Step: ", self.current_step)
+        print("Total # of people: ", self.total_passengers)
+        print("People left to move: ", self.get_all_remaining_passengers())
+        print("Passenger Loaded: ", self.info["loaded"])
+        print("Passenger Unloaded: ", self.info["unloaded"])
+
+    def reset(self):
+        '''Reset the environment to an initial state'''
+        for e in self.elevators:
+            e.empty()
+        self.floor_info = [[] for _ in range(self.max_floor)]
+        self.info = {"unloaded" : {}, "loaded" : {}, "waiting_time_in_elv" : {}}
+        self.current_step = 0
+        self.total_passengers = 0
+        self.cumulated_reward = 0
+        self.arrived_passengers = [[] for _ in range(self.max_floor)]
+        self.generate_passengers(prob=utils.SPAWN_PROB, passenger_max_num=min(self.floor_capacity, utils.GENERATION_RATE))  # Initial passengers
+        return self._get_observation()
+
+    def step(self, action):
+        '''Take an action, update the environment, and return (obs, reward, done, info)'''
+        # self.generate_passengers(prob=0.1)  # New passengers each step
+        self.current_step += 1
+        self.info['unloaded'] = {}
+        self.info['loaded'] = {}
+        reward = self.perform_action(action)
+        obs = self._get_observation()
+        done = self.current_step >= self.max_steps or self.get_all_remaining_passengers() == 0
+        reward += done * utils.FINAL_REWARD  # Extra reward for finishing the episode
+        info = {
+            # "arrived_passengers": self.get_arrived_passengers(),
+            "remaining_passengers": self.get_all_remaining_passengers(),
+            # "state": self.get_state(),
+            "reward": reward
+        }
+        return obs, reward, done, info
+
+
     def render(self, mode='human'):
         '''Render the environment (optional)'''
         if self.render_mode == 'human':
-            self.print_building(self.current_step)
-        elif self.render_mode == 'ansi':
-            return self.print_building(self.current_step)
+            self.render_shafts()
         else:
             raise ValueError("Invalid render mode. Use 'human' or 'ansi'.")
