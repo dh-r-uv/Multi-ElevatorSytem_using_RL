@@ -13,16 +13,7 @@ The environment is modeled using OpenAI Gym and comprises:
 
 - **Action Space**: A `MultiDiscrete` space where each elevator can independently choose among four actions: `move up, move down, load passengers, or unload passengers`.
 
-We employ the Proximal Policy Optimization (PPO) algorithm from `Stable Baselines3` to train the agent. PPO is well-suited for environments with complex, multi-discrete action spaces and provides stable and efficient learning performance.
-
-## Examples
-
-- The code was run using `2 Elevator` model on the input file
-    - `max_floor` = 6 (Building height)
-    - `elevator_capacity` = 8
-    - `floor_capacity` = 8 (maximum number of waiting passengers on a floor)
-
-![](Elevator.gif)
+We employ the Proximal Policy Optimization (PPO2) algorithm from `Stable Baselines3` to train the agent. PPO is well-suited for environments with complex, multi-discrete action spaces and provides stable and efficient learning performance.
 
 ## Installation
 
@@ -40,6 +31,16 @@ We employ the Proximal Policy Optimization (PPO) algorithm from `Stable Baseline
     ```bash
     pip install -r requirements.txt
    ```
+
+## Examples
+
+- The code was run using `2 Elevator` model on the input file
+    - `max_floor` = 6 (Building height)
+    - `elevator_capacity` = 8
+    - `floor_capacity` = 8 (maximum number of waiting passengers on a floor)
+
+![](Elevator.gif)
+
 ## Usage
 
 ### Testing
@@ -48,7 +49,8 @@ We employ the Proximal Policy Optimization (PPO) algorithm from `Stable Baseline
     - `capacity`: 8
     - `floor_capacity`: 8
     - `max_floor`: 6
-- To run a random instance of `passengers(origin, dest)` run 
+    - `epochs`: 3000
+- To run a randomly generated instance of `passengers(origin, dest)` run 
     ```bash
         python test.py
     ```
