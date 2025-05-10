@@ -113,3 +113,7 @@ and
 
 ## Examples
 
+- The code was run using `2 Elevator` model on the input file
+
+![](Elevator.gif)
+
