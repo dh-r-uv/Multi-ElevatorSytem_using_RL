@@ -10,4 +10,4 @@ EPOCHS = 3000
 HORIZONS = 2048
 GENERATION_INTERVAL = 10
 GENERATION_LIMIT = 50
-TB_LOG_DIR = "./tensorboard_logs_2/"
+TB_LOG_DIR = "./tensorboard_logs/"
