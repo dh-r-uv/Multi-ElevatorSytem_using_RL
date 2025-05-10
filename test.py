@@ -8,22 +8,13 @@ from environment.Building import Building
 
 def make_env():
     return Building(
-        elevator_count=3,
+        elevator_count=2,
         max_floor=6,
         floor_capacity=8,
         elevator_capacity=8,
         render_mode="human"
     )
 
-# def make_env():
-#     return Building(
-#         elevator_count=2,
-#         max_floor=4,
-#         floor_capacity=5,
-#         # max_passengers_in_elevator=8,
-#         elevator_capacity=5,
-#         render_mode="human"
-#     )
 
 import argparse
 
@@ -58,14 +49,13 @@ if(flag):
 # Set up the environment
 env = make_env()
 env = DummyVecEnv([lambda: env])  # Wrap in DummyVecEnv for compatibility
-env = VecNormalize.load("3 Elevators/vec_normalize.pkl", env)  # Load normalization stats
+env = VecNormalize.load("2 Elevators/vec_normalize.pkl", env)  # Load normalization stats
 
 # Load the trained PPO model
-model = PPO.load("3 Elevators/ppo_elevator.zip", env=env)
+model = PPO.load("2 Elevators/ppo_elevator.zip", env=env)
 
 # Test for a specified number of episodes
-num_episodes = 1
-
+num_episodes = 2
 
 
 for episode in range(num_episodes):
@@ -93,7 +83,5 @@ for episode in range(num_episodes):
 
         time.sleep(1)  # Add a delay to make rendering observable
         step += 1
-    # Print episode statistics
-    # print(f"Episode {episode + 1}: Reward = {episode_reward}, Steps = {step}, Arrived Passengers = {info[0]['arrived_passengers']}, Remaining Passengers = {info[0]['remaining_passengers']}")
 
 # Note: Ensure "ppo_elevator.zip" and "vec_normalize.pkl" are in the current directory or adjust paths accordingly

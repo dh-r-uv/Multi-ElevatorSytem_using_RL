@@ -4,10 +4,11 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize, VecMonit
 from environment.Building import Building
 from stable_baselines3.common.logger import configure
 import environment.utils as utils
+import os
 
 def make_env():
     return Building(
-        elevator_count=2,
+        elevator_count=3,
         max_floor=6,
         floor_capacity=8,
         elevator_capacity=8,
@@ -67,12 +68,15 @@ for epoch in range(1, utils.EPOCHS+1):
     model.learn(
         total_timesteps = utils.HORIZONS,
         reset_num_timesteps = False,
-        tb_log_name = f"ppo_elevator2_run",
+        tb_log_name = f"ppo_elevator__run",
         callback = CumulativeRewardLogger()
     )
     if(epoch % 50 == 0):
         print("Done with model training for epoch: ", epoch)
 
 # Save model & normalization stats
-model.save("ppo_elevator2")
-env.save("vec_normalize2.pkl")
+# if models directory does not exist, create it
+if not os.path.exists("models"):
+    os.makedirs("models")
+model.save("models/ppo_elevator3")
+env.save("models/vec_normalize3.pkl")

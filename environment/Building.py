@@ -137,7 +137,6 @@ class Building(gym.Env):
                     self.floor_info[floor_num].extend(additional_passengers)
 
     def perform_action(self, action: list):
-        # arrived_passengers_num_lst = []
         penalty = 0
         for idx, e in enumerate(self.elevators):
             if action[idx] == 0:
@@ -209,7 +208,6 @@ class Building(gym.Env):
 
             # Arrived (just unloaded this tick)
             # You need to track unload events per floor; assume self.arrived[floor] is a list of IDs
-            # a_ids = ",".join(str(pid) for pid in self.arrived.get(floor, []))
             a_ids = ",".join(str(p.get_passenger_idx()) for p in self.arrived_passengers[floor])
             arr_str = f" Arrived: [{a_ids}] " if a_ids else " Arrived: [] "
             line += arr_str.ljust(arrived_w)
