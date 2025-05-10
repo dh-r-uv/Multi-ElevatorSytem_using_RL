@@ -2,23 +2,23 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize, VecMonitor
 from environment.Building import Building
+from stable_baselines3.common.logger import configure
 import environment.utils as utils
-
 
 def make_env():
     return Building(
         elevator_count=2,
-        max_floor=4,
-        floor_capacity=5,
-        # max_passengers_in_elevator=8,
-        elevator_capacity=5,
-        render_mode="human"
+        max_floor=6,
+        floor_capacity=8,
+        elevator_capacity=8,
+        render_mode="human",
+        step_gen_flag=True
     )
 
 
 class CumulativeRewardLogger(BaseCallback):
-    def _init_(self, verbose=0):
-        super()._init_(verbose)
+    def __init__(self, verbose=1):
+        super().__init__(verbose)
 
     def _on_step(self) -> bool:
         # 'infos' is a list of dicts, one per env
@@ -56,24 +56,23 @@ model = PPO(
     # sde_sample_freq=-1,       # Only if you enable SDE
 )
 
-model.learn(
-    total_timesteps = utils.HORIZONS,
-    reset_num_timesteps=False,
-    tb_log_name="ppo_elevator_run",
-    callback=CumulativeRewardLogger(),
+new_logger = configure(
+    utils.TB_LOG_DIR, 
+    ["stdout", "csv", "tensorboard"]
 )
+model.set_logger(new_logger)
 
 # Train with our callback
 for epoch in range(1, utils.EPOCHS+1):
     model.learn(
         total_timesteps = utils.HORIZONS,
         reset_num_timesteps = False,
-        tb_log_name = f"ppo_elevator_run",
+        tb_log_name = f"ppo_elevator4_run",
         callback = CumulativeRewardLogger()
     )
     if(epoch % 50 == 0):
         print("Done with model training for epoch: ", epoch)
 
 # Save model & normalization stats
-model.save("ppo_elevator_final")
-env.save("vec_normalize_final.pkl")
+model.save("ppo_elevator4")
+env.save("vec_normalize4.pkl")

@@ -15,7 +15,7 @@ class Building(gym.Env):
     The environment can be reset to an initial state, and the current state can be observed.
     Elevator classes are wrapped in the Building class and the states and actions are defined
     '''
-    def __init__(self, elevator_count: int, max_floor: int, floor_capacity: int, elevator_capacity: int = 10, render_mode:str = "human"):
+    def __init__(self, elevator_count: int, max_floor: int, floor_capacity: int, elevator_capacity: int = 10, render_mode:str = "human", step_gen_flag: bool = False):
         '''
         elevator_count : int : Number of elevators in the building
         floor_capacity : int : Maximum number of passengers on each floor
@@ -36,6 +36,9 @@ class Building(gym.Env):
         # Passengers from file
         self.flag = False
         self.passengers = []
+
+        # Step-Generation flag
+        self.step_generation = step_gen_flag
         
         # Define observation space as a dictionary
         self.observation_space = spaces.Dict({
@@ -54,13 +57,17 @@ class Building(gym.Env):
         # Episode step tracking
         self.max_steps = utils.MAXSTEPS
         self.current_step = 0
+        
 
+        # keep of expected arrived passengers on each floor
+        self.expected_arrived_passengers = [[] for _ in range(self.max_floor)]
         # extra info: list of passengers unloaded per elevator, loaded and waiting time in elevators for each passenger
         self.info = {"unloaded" : {}, "loaded" : {}, "waiting_time_in_elv" : {}}
 
-    def set_flag(self, flag: bool = False, passengers: list = None):
+    def set_flag(self, flag: bool = False, passengers: list = None, step_generation: bool = False):
         self.flag = flag
         self.passengers = passengers
+        self.step_generation = step_generation
 
     def _get_observation(self):
         '''Return the current state in the observation_space format'''
@@ -116,6 +123,7 @@ class Building(gym.Env):
                     self.total_passengers += 1
                     new_passenger = Passenger(cur_floor=cur_floor, max_floor=self.max_floor, cur_step=self.current_step, passenger_idx=self.total_passengers, dest_floor=dest_floor)
                     self.floor_info[cur_floor].append(new_passenger)
+                    self.expected_arrived_passengers[dest_floor].append(new_passenger)
         else:
             for floor_num in range(self.max_floor):
                 if np.random.random() < prob and len(self.floor_info[floor_num]) < self.floor_capacity:
@@ -125,6 +133,7 @@ class Building(gym.Env):
                     for i in range(passenger_num):
                         self.total_passengers += 1
                         additional_passengers.append(Passenger(cur_floor=floor_num, max_floor=self.max_floor, cur_step=self.current_step, passenger_idx=self.total_passengers))
+                        self.expected_arrived_passengers[additional_passengers[-1].dest_floor].append(additional_passengers[-1])
                     self.floor_info[floor_num].extend(additional_passengers)
 
     def perform_action(self, action: list):
@@ -169,12 +178,13 @@ class Building(gym.Env):
         - Arrived: IDs that got off here this timestep
         """
         n_shafts = len(self.elevators)
-        shaft_w = 2 * self.elevator_capacity + 5
+        shaft_w = int(2.5 * self.elevator_capacity) + 5
         floor_label_w = 12
-        waiting_w = self.floor_capacity * 2 + 12
-        arrived_w = self.floor_capacity * 2 + 12
+        waiting_w = int(self.floor_capacity * 2.5) + 12
+        arrived_w = int(self.floor_capacity * 2.5)+ 12
+        expected_arrived_w = self.floor_capacity * 2 + 12
 
-        total_w = floor_label_w + 1 + n_shafts * shaft_w + 1 + waiting_w + 3 + arrived_w
+        total_w = floor_label_w + 1 + n_shafts * shaft_w + 1 + waiting_w + 3 + arrived_w + 3 + expected_arrived_w
         sep = "=" * total_w
 
         for floor in reversed(range(self.max_floor)):
@@ -204,6 +214,11 @@ class Building(gym.Env):
             arr_str = f" Arrived: [{a_ids}] " if a_ids else " Arrived: [] "
             line += arr_str.ljust(arrived_w)
 
+            # Expected Arrived (just unloaded this tick)
+            exa_ids = ",".join(str(p.get_passenger_idx()) for p in self.expected_arrived_passengers[floor])
+            exa_str = f" Expected: [{exa_ids}] " if exa_ids else " Expected: [] "
+            line += exa_str.ljust(expected_arrived_w)
+            
             print(sep)
             print(line)
         print(sep)
@@ -223,23 +238,24 @@ class Building(gym.Env):
         self.total_passengers = 0
         self.cumulated_reward = 0
         self.arrived_passengers = [[] for _ in range(self.max_floor)]
+        self.expected_arrived_passengers = [[] for _ in range(self.max_floor)]
         self.generate_passengers(prob=utils.SPAWN_PROB, passenger_max_num=min(self.floor_capacity, utils.GENERATION_RATE))  # Initial passengers
         return self._get_observation()
 
     def step(self, action):
         '''Take an action, update the environment, and return (obs, reward, done, info)'''
-        # self.generate_passengers(prob=0.1)  # New passengers each step
         self.current_step += 1
+        if(self.step_generation and (self.current_step % utils.GENERATION_INTERVAL) == 0 and self.current_step <= utils.GENERATION_LIMIT):
+            self.generate_passengers(prob=utils.SPAWN_INTERMEDIATE_PROB, passenger_max_num=min(self.floor_capacity, utils.SPAWN_INTERMEDIATE))
+  
         self.info['unloaded'] = {}
         self.info['loaded'] = {}
-        reward = self.perform_action(action)
-        obs = self._get_observation()
         done = self.current_step >= self.max_steps or self.get_all_remaining_passengers() == 0
+        reward = self.perform_action(action)
+        obs = self._get_observation()  
         reward += done * utils.FINAL_REWARD  # Extra reward for finishing the episode
         info = {
-            # "arrived_passengers": self.get_arrived_passengers(),
             "remaining_passengers": self.get_all_remaining_passengers(),
-            # "state": self.get_state(),
             "reward": reward
         }
         return obs, reward, done, info

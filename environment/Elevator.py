@@ -36,7 +36,9 @@ class Elevator(object):
 
     def empty(self):
         self.passengers_in_elv = []
+        self.passenger_count = 0
         self.cur_floor = 0
+
 
     def load(self, passengers_in_floor : list) -> list:
         '''
