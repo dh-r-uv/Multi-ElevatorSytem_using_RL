@@ -65,6 +65,7 @@ class Building(gym.Env):
         self.info = {"unloaded" : {}, "loaded" : {}, "waiting_time_in_elv" : {}}
 
     def set_flag(self, flag: bool = False, passengers: list = None, step_generation: bool = False):
+        # flag for input passengers and step_generation
         self.flag = flag
         self.passengers = passengers
         self.step_generation = step_generation
@@ -227,7 +228,7 @@ class Building(gym.Env):
         print("Passenger Unloaded: ", self.info["unloaded"])
 
     def reset(self):
-        '''Reset the environment to an initial state'''
+        '''Resets the environment to an initial state'''
         for e in self.elevators:
             e.empty()
         self.floor_info = [[] for _ in range(self.max_floor)]
@@ -260,7 +261,6 @@ class Building(gym.Env):
 
 
     def render(self, mode='human'):
-        '''Render the environment (optional)'''
         if self.render_mode == 'human':
             self.render_shafts()
         else:

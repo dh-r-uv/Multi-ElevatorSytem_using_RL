@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 def make_env():
     return Building(
-        elevator_count=3,
+        elevator_count=2,
         max_floor=6,
         floor_capacity=8,
         elevator_capacity=8,
@@ -71,7 +71,7 @@ for epoch in range(1, utils.EPOCHS+1):
     model.learn(
         total_timesteps = utils.HORIZONS,
         reset_num_timesteps = False,
-        tb_log_name = f"ppo_elevator__run",
+        tb_log_name = f"ppo_elevator_run",
         callback = CumulativeRewardLogger()
     )
     if(epoch % 50 == 0):
@@ -81,5 +81,5 @@ for epoch in range(1, utils.EPOCHS+1):
 # if models directory does not exist, create it
 if not os.path.exists("models"):
     os.makedirs("models")
-model.save("models/ppo_elevator3")
-env.save("models/vec_normalize3.pkl")
+model.save("models/ppo_elevator2")
+env.save("models/vec_normalize2.pkl")
