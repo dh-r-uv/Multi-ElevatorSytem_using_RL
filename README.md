@@ -15,6 +15,12 @@ The environment is modeled using OpenAI Gym and comprises:
 
 We employ the Proximal Policy Optimization (PPO) algorithm from `Stable Baselines3` to train the agent. PPO is well-suited for environments with complex, multi-discrete action spaces and provides stable and efficient learning performance.
 
+## Examples
+
+- The code was run using `2 Elevator` model on the input file
+
+![](Elevator.gif)
+
 ## Installation
 
 1. **clone the repo**  
@@ -111,9 +117,4 @@ and
 
     - Contains methods like `reset()`, `step()`, `render()` and `_get_observation()` which are used by the PPO model of `stablebaselines3`. Implementations can be checked in `environment/Bulding.py`.
 
-## Examples
-
-- The code was run using `2 Elevator` model on the input file
-
-![](Elevator.gif)
 
