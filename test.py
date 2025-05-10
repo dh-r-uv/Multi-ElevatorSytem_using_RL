@@ -5,6 +5,10 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env import VecNormalize
 from environment.Building import Building
+import warnings
+
+# Ignore warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def make_env():
     return Building(
@@ -55,7 +59,7 @@ env = VecNormalize.load("2 Elevators/vec_normalize.pkl", env)  # Load normalizat
 model = PPO.load("2 Elevators/ppo_elevator.zip", env=env)
 
 # Test for a specified number of episodes
-num_episodes = 2
+num_episodes = 1
 
 
 for episode in range(num_episodes):

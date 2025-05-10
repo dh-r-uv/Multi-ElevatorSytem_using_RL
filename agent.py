@@ -5,6 +5,9 @@ from environment.Building import Building
 from stable_baselines3.common.logger import configure
 import environment.utils as utils
 import os
+import warnings
+# Ignore warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def make_env():
     return Building(
