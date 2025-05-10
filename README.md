@@ -18,6 +18,9 @@ We employ the Proximal Policy Optimization (PPO) algorithm from `Stable Baseline
 ## Examples
 
 - The code was run using `2 Elevator` model on the input file
+    - `max_floor` = 6 (Building height)
+    - `elevator_capacity` = 8
+    - `floor_capacity` = 8 (maximum number of waiting passengers on a floor)
 
 ![](Elevator.gif)
 
